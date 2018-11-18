@@ -18,7 +18,7 @@ def main():
     print("Начало работы программы.")
     # === Инициализация пинов для светодиода ===
     GPIO.setmode(GPIO.BCM)
-    pin_led = 5 
+    pin_led = 5
     pin_switch = 4
     GPIO.setup(pin_led, GPIO.OUT, initial=GPIO.HIGH)
     GPIO.setup(pin_switch, GPIO.OUT, initial=GPIO.HIGH)
