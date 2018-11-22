@@ -10,9 +10,12 @@ import sys
 import RPi.GPIO as GPIO
 # Импортируем класс для работы со временем
 import time
+import asyncio
 # Импортируем класс для работы с датчиком ds1620
-from ds1620.drivers.ds1620driver import DS1620
-from ds1620.fuzzy.controller import CFuzzyController
+from drivers.ds1620driver import DS1620
+from fuzzy.controller import CFuzzyController
+from nats.aio.client import Client as NATS
+from nats.aio.errors import ErrConnectionClosed, ErrTimeout, ErrNoServers
 
 def main():
     print("Начало работы программы.")
@@ -51,13 +54,20 @@ def main():
             time.sleep(time2)
 
             continue
-
         time3 += period
 
         # Считываем текущую температуру.
         temperature = t_sensor.get_temperature()
         # Выводим температуру на экран.
         print("| "+str(time3)+" | Температура: " + str(temperature)+" | ", end='')
+
+        # Подключаемся к серверу NATS для передачи данных
+        if time3 == 10:
+            async def run(loop):
+                nc = NATS()
+                await nc.connect("nats://192.168.1.104:4222", loop=loop)
+                print(nc.is_connected)
+
 
         # Рассчитываем значения мощностей нагревателя и охладителя для данной температуры.
         heater, cooler = controller.get(temperature)
