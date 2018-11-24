@@ -32,11 +32,12 @@ def main():
 
     controller = CFuzzyController(50)
 
-    # Период переключения нагревателя, сек.
+    # Период переключения нагревателя, сек.; разница дельта температур
     period = 10
     time1 = 0
     time2 = 0
     time3 = -10
+    deltatemp = 1.5
 
     # Состояние системы. Активирован нагреватель (0) или нет (1).
     state = 1
@@ -63,10 +64,10 @@ def main():
 
         # Записываем текущую температуру в еще одну переменную
         if time3 != 0 and time3 != 10:
-            if abs(temperature - temperature_old) >= 0.5:
+            if abs(temperature - temperature_old) >= deltatemp:
                 async def run2(loop2):
                     nc = NATS()
-                    await nc.connect("nats://192.168.1.104:4222", loop=loop2)
+                    await nc.connect("nats://192.168.1.103:4222", loop=loop2)
 
                     async def message_handler2(msg):
                         subject = msg.subject
@@ -76,10 +77,10 @@ def main():
                             subject=subject, reply=reply, data=data))
 
                     # "*" matches any token, at any level of the subject.
-                    await nc.subscribe("TempRoom1 is", cb=message_handler2)
+                    await nc.subscribe("TR1C", cb=message_handler2)
 
                     # Matches all of the above.
-                    await nc.publish("TempRoom1 is", str(temperature).encode())
+                    await nc.publish("TR1C", str(temperature).encode())
 
                     # Gracefully close the connection.
                     await nc.drain()
@@ -99,8 +100,9 @@ def main():
         if time3 == 10:
             async def run(loop):
                 nc = NATS()
-                await nc.connect("nats://192.168.1.104:4222", loop=loop)
-                # print(nc.is_connected)
+                await nc.connect("nats://192.168.1.103:4222", loop=loop)
+
+                print(nc.is_connected)
 
                 async def message_handler(msg):
                     subject = msg.subject
@@ -110,10 +112,10 @@ def main():
                         subject=subject, reply=reply, data=data))
 
                 # "*" matches any token, at any level of the subject.
-                await nc.subscribe("TempRoom1 is", cb=message_handler)
+                await nc.subscribe("TR1", "queue", cb=message_handler)
 
                 # Matches all of the above.
-                await nc.publish("TempRoom1 is", str(temperature).encode())
+                await nc.publish("TR1", str(temperature).encode())
 
                 # Gracefully close the connection.
                 await nc.drain()
