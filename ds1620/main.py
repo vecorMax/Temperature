@@ -40,6 +40,8 @@ def main():
 
     # Состояние системы. Активирован нагреватель (0) или нет (1).
     state = 1
+
+
     # Бесконечный цикл для измерения температуры.
     while 1:
         if state==0:
@@ -58,6 +60,38 @@ def main():
 
         # Считываем текущую температуру.
         temperature = t_sensor.get_temperature()
+
+        # Записываем текущую температуру в еще одну переменную
+        if time3 != 0 and time3 != 10:
+            if abs(temperature - temperature_old) >= 0.5:
+                async def run2(loop2):
+                    nc = NATS()
+                    await nc.connect("nats://192.168.1.104:4222", loop=loop2)
+
+                    async def message_handler2(msg):
+                        subject = msg.subject
+                        reply = msg.reply
+                        data = msg.data.decode()
+                        print("Received a message on '{subject} {reply}': {data}".format(
+                            subject=subject, reply=reply, data=data))
+
+                    # "*" matches any token, at any level of the subject.
+                    await nc.subscribe("TempRoom1 is", cb=message_handler2)
+
+                    # Matches all of the above.
+                    await nc.publish("TempRoom1 is", str(temperature).encode())
+
+                    # Gracefully close the connection.
+                    await nc.drain()
+
+                if __name__ == '__main__':
+                    loop2 = asyncio.new_event_loop()
+                    asyncio.get_event_loop()
+                    loop2.run_until_complete(run2(loop2))
+                    loop2.close()
+
+        temperature_old = temperature
+
         # Выводим температуру на экран.
         print("| "+str(time3)+" | Температура: " + str(temperature)+" | ", end='')
 
@@ -66,8 +100,28 @@ def main():
             async def run(loop):
                 nc = NATS()
                 await nc.connect("nats://192.168.1.104:4222", loop=loop)
-                print(nc.is_connected)
+                # print(nc.is_connected)
 
+                async def message_handler(msg):
+                    subject = msg.subject
+                    reply = msg.reply
+                    data = msg.data.decode()
+                    print("Received a message on '{subject} {reply}': {data}".format(
+                        subject=subject, reply=reply, data=data))
+
+                # "*" matches any token, at any level of the subject.
+                await nc.subscribe("TempRoom1 is", cb=message_handler)
+
+                # Matches all of the above.
+                await nc.publish("TempRoom1 is", str(temperature).encode())
+
+                # Gracefully close the connection.
+                await nc.drain()
+
+            if __name__ == '__main__':
+                loop = asyncio.get_event_loop()
+                loop.run_until_complete(run(loop))
+                loop.close()
 
         # Рассчитываем значения мощностей нагревателя и охладителя для данной температуры.
         heater, cooler = controller.get(temperature)
@@ -82,6 +136,7 @@ def main():
         time1 = period * heater * 0.01
         time2 = period - time1
         time.sleep(time1)
+
 try:
     main()
 
