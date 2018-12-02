@@ -42,6 +42,7 @@ def main():
     # Состояние системы. Активирован нагреватель (0) или нет (1).
     state = 1
 
+    nc = NATS()
 
     # Бесконечный цикл для измерения температуры.
     while 1:
@@ -65,11 +66,11 @@ def main():
         # Записываем текущую температуру в еще одну переменную
         if time3 != 0 and time3 != 10:
             if abs(temperature - temperature_old) >= deltatemp:
-                async def run2(loop2):
-                    nc = NATS()
-                    await nc.connect("nats://192.168.1.103:4222", loop=loop2)
+                async def run2(loop):
+                    if not nc.is_connected:
+                        await nc.connect("nats://192.168.1.103:4222", loop=loop)
 
-                    async def message_handler2(msg):
+                    async def message_handler(msg):
                         subject = msg.subject
                         reply = msg.reply
                         data = msg.data.decode()
@@ -77,19 +78,17 @@ def main():
                             subject=subject, reply=reply, data=data))
 
                     # "*" matches any token, at any level of the subject.
-                    await nc.subscribe("TR1C", cb=message_handler2)
+                    try:
+                        await nc.subscribe("TR1*", "queue", cb=message_handler)
+                    except RuntimeError:
+                        print("Event loop is closed")
 
                     # Matches all of the above.
                     await nc.publish("TR1C", str(temperature).encode())
 
-                    # Gracefully close the connection.
-                    await nc.drain()
-
                 if __name__ == '__main__':
                     loop2 = asyncio.new_event_loop()
-                    asyncio.get_event_loop()
                     loop2.run_until_complete(run2(loop2))
-                    loop2.close()
 
         temperature_old = temperature
 
@@ -98,11 +97,9 @@ def main():
 
         # Подключаемся к серверу NATS для передачи данных
         if time3 == 10:
-            async def run(loop):
-                nc = NATS()
-                await nc.connect("nats://192.168.1.103:4222", loop=loop)
-
-                print(nc.is_connected)
+            async def run1(loop1):
+                if not nc.is_connected:
+                    await nc.connect("nats://192.168.1.103:4222", loop=loop1)
 
                 async def message_handler(msg):
                     subject = msg.subject
@@ -117,13 +114,9 @@ def main():
                 # Matches all of the above.
                 await nc.publish("TR1", str(temperature).encode())
 
-                # Gracefully close the connection.
-                await nc.drain()
-
             if __name__ == '__main__':
-                loop = asyncio.get_event_loop()
-                loop.run_until_complete(run(loop))
-                loop.close()
+                loop1 = asyncio.get_event_loop()
+                loop1.run_until_complete(run1(loop1))
 
         # Рассчитываем значения мощностей нагревателя и охладителя для данной температуры.
         heater, cooler = controller.get(temperature)
@@ -138,6 +131,7 @@ def main():
         time1 = period * heater * 0.01
         time2 = period - time1
         time.sleep(time1)
+
 
 try:
     main()
