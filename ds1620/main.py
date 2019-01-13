@@ -46,14 +46,14 @@ def main():
 
     # Бесконечный цикл для измерения температуры.
     while 1:
-        if state==0:
-            if time2==0:
+        if state == 0:
+            if time2 == 0:
                 state = 1
                 continue
 
             # Изменяем состояние светодиода
-            GPIO.output(pin_led,  GPIO.LOW)
-            GPIO.output(pin_switch,  GPIO.HIGH)
+            GPIO.output(pin_led, GPIO.LOW)
+            GPIO.output(pin_switch, GPIO.HIGH)
             state = 1
             time.sleep(time2)
 
@@ -79,27 +79,29 @@ def main():
 
                     # "*" matches any token, at any level of the subject.
                     try:
-                        await nc.subscribe("TR1*", "queue", cb=message_handler)
+                        await nc.subscribe("TR1С", "queue", cb=message_handler)
                     except RuntimeError:
                         print("Event loop is closed")
 
                     # Matches all of the above.
                     await nc.publish("TR1C", str(temperature).encode())
 
+                    await nc.drain()
+
                 if __name__ == '__main__':
                     loop2 = asyncio.new_event_loop()
                     loop2.run_until_complete(run2(loop2))
+                    loop2.close()
 
         temperature_old = temperature
 
         # Выводим температуру на экран.
-        print("| "+str(time3)+" | Температура: " + str(temperature)+" | ", end='')
+        print("| " + str(time3) + " | Температура: " + str(temperature) + " | ", end='')
 
         # Подключаемся к серверу NATS для передачи данных
         if time3 == 10:
-            async def run1(loop1):
-                if not nc.is_connected:
-                    await nc.connect("nats://192.168.1.103:4222", loop=loop1)
+            async def run(loop):
+                await nc.connect("nats://192.168.1.103:4222", loop=loop)
 
                 async def message_handler(msg):
                     subject = msg.subject
@@ -114,14 +116,17 @@ def main():
                 # Matches all of the above.
                 await nc.publish("TR1", str(temperature).encode())
 
+                await nc.drain()
+
             if __name__ == '__main__':
-                loop1 = asyncio.get_event_loop()
-                loop1.run_until_complete(run1(loop1))
+                loop = asyncio.get_event_loop()
+                loop.run_until_complete(run(loop))
+                loop.close()
 
         # Рассчитываем значения мощностей нагревателя и охладителя для данной температуры.
         heater, cooler = controller.get(temperature)
         # Выводим мощности на экран
-        print("Нагреватель: " + str(heater)+" | ", end='')
+        print("Нагреватель: " + str(heater) + " | ", end='')
         print("Охладитель: " + str(cooler) + " |")
 
         GPIO.output(pin_switch, GPIO.LOW)
@@ -131,7 +136,6 @@ def main():
         time1 = period * heater * 0.01
         time2 = period - time1
         time.sleep(time1)
-
 
 try:
     main()
